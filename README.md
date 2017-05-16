@@ -1,1 +1,1 @@
-# Crawler-for-building-portuguese-Dataset-for-NER
+# Data set builder for NER
