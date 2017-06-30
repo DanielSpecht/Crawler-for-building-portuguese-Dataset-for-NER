@@ -9,12 +9,13 @@ class FaultyArticlePipeline(object):
 
 	#Detects errors in the structure of the article
     def process_item(self, item, sp1ider):
-        faultyItemFlag = False
 
-        for key in  item.keys():
+        for key in item.keys():
             if not item[key]:
-                faultyItemFlag = False
-                self.logger.info('Item without '+key+' in %s', response.url)
+                self.logger.info('Item without '+key+' in %s', item["URL"])
 
-        if faultyItemFlag:
-            raise DropItem("Faulty item found: %s" % item)
+        if (not item["Text"]) or (not item["Entities"]):
+            raise DropItem('Crucial information not found, item droped %s' % item["URL"])
+
+        else:
+            return item

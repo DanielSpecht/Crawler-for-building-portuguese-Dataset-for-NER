@@ -115,7 +115,7 @@ class ArticlesSpider(scrapy.Spider):
 					if G1_URL not in entityLink:
 						entityLink = G1_URL+entityLink
 
-					entity =  {"ShortName":"","FullName":entityName,"Page":entityLink,"Type":""}
+					entity =  {"Names":[entityName],"Page":entityLink,"Type":""}
 					if not any(entity["Page"]==entityLink  for entity in entities):
 						entities.append(entity)
 

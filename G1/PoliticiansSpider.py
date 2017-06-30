@@ -3,7 +3,7 @@ import scrapy
 import string
 import sys
 
-#To run without the pausing feature: scrapy runspider PoliticiansSpider.py -o FilteredPoliticians.json
+#To run without the pausing feature: scrapy runspider PoliticiansSpider.py -o Politicians.json
 #To run with the pausing feature (inside scrapy project): scrapy crawl PoliticiansSpider -s JOBDIR=crawls/PoliticianFilterSpider-1 -o Politicians.json
 
 #The purpose of this spider is to structure and register all the politicians present in the index page: http://g1.globo.com/politica/politicos/indice/
@@ -44,4 +44,4 @@ class PoliticiansSpider(scrapy.Spider):
 			politician["ShortName"] = politician_page.xpath(".//span[re:test(@class, 'glb-index-item-title')]/text()").extract_first()
 			politician["FullName"] = politician_page.xpath(".//span[re:test(@class, 'glb-index-item-posttitle')]/text()").extract_first()
 
-			return politician
+			yield politician
