@@ -6,8 +6,11 @@ import json
 import re
 import itertools
 
+from polyglot.text import Text
+import polyglot
 
-IOB = { "Inside":"I - ", "Outside":"O", "Begin":"B - "}
+
+IOB = { "Inside":"I-", "Outside":"O", "Begin":"B-"}
 TYPES = {"Person":"PER", "Location":"LOC", "Organization":"ORG"}
 
 def main ():
@@ -15,7 +18,7 @@ def main ():
     with open('../G1/ArticlesCrawled.json', 'r') as f:
         json_articles = json.load(f)
 
-        #json_articles = json_articles[:100]
+        json_articles = json_articles[:100]
         setLocationEntities(json_articles)
         setPersonEntities(json_articles)
         removeUnsetEntities(json_articles)
@@ -76,7 +79,7 @@ def generateDataSet(articles):
     dataSet = open('dataSet', 'w')
 
     for article in articles:
-        writeArticleURL(article,dataSet)
+        #writeArticleURL(article,dataSet)
         for sentence in article["Text"]:
             words = nltk.word_tokenize(sentence)
             sequenceOfEntityTerms = []
@@ -100,10 +103,19 @@ def generateDataSet(articles):
                 annotatedSentence += attributeSequenceToEntities(sequenceOfEntityTerms,article["Entities"])
                 sequenceOfEntityTerms = []
 
-            writeAnnotadedSentence(annotatedSentence,dataSet)
-            #printAnnotadedSentence(annotatedSentence)
+            if sentenceHasNamedEntities(annotatedSentence):
+                #print("Written:")
+                #print (annotatedSentence)
+                predictOtherEntities(annotatedSentence,sentence)
+                writeAnnotadedSentence(annotatedSentence,dataSet)
 
     dataSet.close()
+
+def sentenceHasNamedEntities(annotatedSentence):
+    for annotation in annotatedSentence:
+        if annotation[1] != IOB["Outside"]:
+            return True
+    return False
 
 def writeArticleURL(article,dataSetFile):
     dataSetFile.write(article["URL"]+"\n")
@@ -118,6 +130,55 @@ def printAnnotadedSentence(sentence):
     for annotation in sentence:
         print (annotation)
         #print (annotation[0]+"--"+annotation[1])
+
+def predictOtherEntities(annotatedSentence,sentence):
+    polyglotAnnotation = Text(sentence, hint_language_code='pt')
+
+    #segmentantion unmatchs
+    if len(annotatedSentence)!=len(polyglotAnnotation.words):
+        #print("NÂÂÂO")
+        #print(len(annotatedSentence))
+        #print(len(polyglotAnnotation.words))
+        #print(annotatedSentence)
+        #print(polyglotAnnotation.words)
+
+        return
+
+    #print("SIIM")
+    #print(len(annotatedSentence))
+    #print(len(polyglotAnnotation.words))
+    #return
+
+    for entity in polyglotAnnotation.entities:
+        wasAnnotated = False
+
+        for i in range(entity.start,entity.end):
+            if annotatedSentence[i][1]!=IOB["Outside"]:
+                wasAnnotated = True
+                break
+
+        if not wasAnnotated:
+
+            suffix = None
+
+            if entity.tag == "I-PER":
+                suffix = TYPES["Person"]
+            elif entity.tag == "I-LOC":
+                suffix = TYPES["Location"]
+                print ("ALOC")
+            #elif entity.tag == "I-ORG":
+            #    suffix = TYPES["Organization"]
+            else:
+                return
+
+            annotatedSentence[entity.start][1] = IOB["Begin"]+suffix
+
+            for i in range(entity.start+1,entity.end):
+                annotatedSentence[i][1] = IOB["Inside"]+suffix
+
+            if entity.tag == "I-LOC":
+                print(annotatedSentence)
+
 
 
 def attributeSequenceToEntities (sequence,entities):
@@ -144,17 +205,17 @@ def attributeSequenceToEntities (sequence,entities):
     i = 0
     j = maxScore-1
 
-    print ("\n")
-    print ("Sequence:"+str(sequence))
-    print ("Annotaded sequence:"+str(annotatedSequence))
-    print ("MaxScore:"+str(maxScore))
+    #print ("\n")
+    #print ("Sequence:"+str(sequence))
+    #print ("Annotaded sequence:"+str(annotatedSequence))
+    #print ("MaxScore:"+str(maxScore))
 
-    print ("HOOY -- "+str(len(sequence)))
+    #print ("HOOY -- "+str(len(sequence)))
     while  i < maxScore and (not sequence[i][0].isupper()) :
-        print (str(i)+"--"+str(maxScore-1))
+        #print (str(i)+"--"+str(maxScore-1))
         annotatedSequence[i] = [sequence[i],IOB["Outside"]]
         i+=1
-        print ("OIE")
+        #print ("OIE")
 
     if i == maxScore:
         return annotatedSequence
@@ -166,7 +227,7 @@ def attributeSequenceToEntities (sequence,entities):
     annotatedSequence[i] = [sequence[i],IOB["Begin"]+maxScoreEntity["Type"]]
     i+=1
 
-    print ("range--"+str(i)+"-"+str(j+1))
+    #print ("range--"+str(i)+"-"+str(j+1))
     for k in range(i,j+1):
         annotatedSequence[k] = [sequence[i],IOB["Inside"]+maxScoreEntity["Type"]]
 
