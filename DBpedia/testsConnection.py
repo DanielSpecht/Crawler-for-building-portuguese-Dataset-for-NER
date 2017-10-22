@@ -27,29 +27,6 @@ run= " Run Query "
 # --- QueryBuilder
 preferedLang = "pt"
 
-
-namespaces = 
-{
-
-
-}
-
-
-def simpleQueryBuilder( optionalParams):
-
-    for param in params:
-        selectParam = 
-
-
-
-
-    queryString = ""
-
-
-
-    return queryString
-
-
 # --- Test
 
 query = 'select distinct ?Concept where {[] a ?Concept} LIMIT 100'
@@ -61,18 +38,42 @@ print(r.url)
 print(r.text)
 
 
-# todo - change this name
-def makeParameter(subject,predicateNamespace,predicateTag,object):
-    return {"subject":subject ,"predicate":{"namespace":,"property":}}
-    
-    
+# --- Namespaces
+dbo = {"alias":"dbo", "URL":"http://dbpedia.org/ontology/"}
+dbp = {"alias":"dbp", "URL":"http://dbpedia.org/property/"}
+foaf = {"alias":"foaf", "URL":"http://xmlns.com/foaf/0.1/"}
+rdfs = {"alias":"foaf", "URL":"http://www.w3.org/2000/01/rdf-schema#"}
+
+namespaces = [dbo, dbp, foaf, rdfs]
+
+# - Parameters
+def makeParameter(subject, alias, predicate, namespace, optional):
+    return {"subject": subject, "predicate": {"namespace": namespace, "name": predicate}, "alias": alias, "optional": optional}
+
+# - Entity class
+personEntity = {"alias": "Person", "namespace": dbo, "type": "Person"}
+
+# - Entity properties
+properties = []
+
+# - Required properties
+isPrimaryTopicOf = makeParameter(subject=personEntity,
+                                 alias="isPrimaryTopicOf",
+                                 predicate="isPrimaryTopicOf",
+                                 namespace=foaf,
+                                 optional=False)
+
+properties = [isPrimaryTopicOf]
 
 
-namespaces = [{"alias":"dbo", "URL":"http://dbpedia.org/ontology/"},
-              {"alias":"dbp", "URL":"http://dbpedia.org/property/"},
-              {"alias":"foaf", "URL":"http://xmlns.com/foaf/0.1/"}]
+  # ?person foaf:isPrimaryTopicOf ?t
+  # OPTIONAL {?person rdfs:label ?label . }
+  # OPTIONAL {?person foaf:name ?name . }
+  # OPTIONAL {?person dbo:alias ?alias .}
+  # OPTIONAL {?person dbo:birthName ?birthName .}
+  # OPTIONAL {?person dbo:pseudonym ?pseudonym .}
 
-entityType = 
+
 
 SEPARATOR = "@$@"
 
@@ -89,11 +90,18 @@ def makeNamedEntityExtractionQuery(namespaces,parameters,entityType):
     query.append("SELECT DISTINCT")
 
     # Select the required and optional parameters
-    # i.e. (group_concat(distinct ?name; separator = ",") as ?names)
+    # i.e. when needing concatenating: (group_concat(distinct ?name; separator = ",") as ?names)
+    # i.e. otherwise: ?names
     for parameter in requiredParameters+optionalParameters:
-        query.append(
-            '(GROUP_CONCAT(DISTINCT ?%s; separator = "%s") as ?%s)'
-            % (parameter["alias"],SEPARATOR,parameter["alias"]))
+        if parameter["concatenate"]:
+            query.append(
+                '(GROUP_CONCAT(DISTINCT ?%s; separator = "%s") as ?%s)'
+                % (parameter["alias"],SEPARATOR,parameter["alias"]))
+        else:
+            query.append(
+                '?%s'
+                % (parameter["alias"]))
+
     
     # Start the 'where' clause
     query.append("WHERE{")
@@ -111,7 +119,7 @@ def makeNamedEntityExtractionQuery(namespaces,parameters,entityType):
     for parameter in parameters:
         if parameter["optional"]:
           query.append("OPTIONAL {?%s %s:%s ?%s}"
-                       % (parameter["subject"]["name"],
+                       % (parameter["subject"]["alias"],
                           parameter["predicate"]["namespace"]["alias"],
                           parameter["predicate"]["name"],
                           parameter["alias"]))
@@ -131,7 +139,7 @@ def makeNamedEntityExtractionQuery(namespaces,parameters,entityType):
     if parameters:
         query.append('regex(?%s, "[[:blank:]]"' 
                     % (parameters[0]["alias"] ) );
-        for parameter in parameters
+        for parameter in parameters:
             query.append('&& regex(?%s, "[[:blank:]]"' 
                         % (parameter["alias"] ) );
 
@@ -143,4 +151,4 @@ def makeNamedEntityExtractionQuery(namespaces,parameters,entityType):
     query.append('}')
 
 
-    return string.join(query)
+    return string.join(query) 
