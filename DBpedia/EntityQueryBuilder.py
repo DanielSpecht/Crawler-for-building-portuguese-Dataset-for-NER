@@ -28,10 +28,10 @@ class EntityQueryBuilder:
         self.entity = entity
         self._separator = ";;"
 
-    def getQuery(self):
-        return self._getQuery(self.namespaces,self.parameters,self.entity)
+    def getQuery(self,limit=None,offset=None):
+        return self._getQuery(self.namespaces,self.parameters,self.entity,offset,limit)
 
-    def _getQuery(self,namespaces,parameters,entity):
+    def _getQuery(self,namespaces,parameters,entity,offset,limit):
         query = []
 
         # Add namespaces
@@ -102,5 +102,11 @@ class EntityQueryBuilder:
 
         # Close WHERE clause
         query.append('}')
+        
+        if limit:
+            query.append("LIMIT %s"%(limit))
+
+        if offset:
+            query.append("OFFSET %s"%(offset))
 
         return "\n".join(query) 
