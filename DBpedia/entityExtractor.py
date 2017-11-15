@@ -2,6 +2,11 @@ from EntityQueryBuilder import *
 from RequestDBpediaSPARQL import *
 import os
 import errno
+import logging
+import tst
+
+# Max results per query
+DBPEDIA_MAX_RESULTS = 10000
 
 # - Namespaces
 dbo = Namespace("dbo", "http://dbpedia.org/ontology/")
@@ -171,12 +176,15 @@ def saveResultInFile(lines,batch,entity,folder):
     file = open(fileName,"w")
     for line in lines:
         file.writelines(line+"\n")
-    file.close()
+    file.close()    
 
 def main():
+    logging.basicConfig(filename='EntityExtractorInfo.log',level=logging.INFO)
+    
     attributesOfEntities = [personAttributes,placeAttributes,organisationAttributes]
     entities = [personEntity,placeEntity,organisationEntity]
     
+    # Execution for each entity
     for entity, attributes in zip(entities, attributesOfEntities):
         
         # Associate
@@ -191,23 +199,31 @@ def main():
 
         folder = "%s/"%(entity.alias)
         hasResults = True
-        batchSize = 10
+        batchSize = DBPEDIA_MAX_RESULTS
         iteration = 0
+        nBatches = 10
+
         while hasResults:
             # Get results
             # print queryBuilder.getQuery()
-            result = DBpediaQueryRequest.requestQuery(query = queryBuilder.getQuery(limit = batchSize,offset=iteration*batchSize))
+            result = DBpediaQueryRequest.sendQueryRequest(query = queryBuilder.getQuery(limit = batchSize,offset=iteration*batchSize))
             lines = result.encode("utf-8").splitlines()
-
             saveResultInFile(lines,iteration+1,entity,folder)
 
-            # Stop check
+            iteration += 1
+
+            # Stop check: 
+            if iteration == nBatches:
+                hasResults = False
+
+            # Stop check: no more results found
             if len(lines) < batchSize-1:
                 hasResults = False
 
-            iteration += 1
-            print result
-            print "\n Batch: %s -- N results: %s \n"%(iteration,len(lines))
+
+            log = "\n Batch: %s -- N results: %s \n"%(iteration,len(lines))
+            print log
+            logging.info(log)
 
 if __name__ == "__main__":
     main()

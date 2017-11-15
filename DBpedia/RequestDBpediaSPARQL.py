@@ -20,7 +20,7 @@ class RequestDBpediaSPARQL:
                  self.timeout = timeout
                  self.debug = debug
 
-    def requestQuery(self, query):
+    def sendQueryRequest(self, query):
         params = {'query': query,
                   'default-graph-uri': self.defaultGraphURI,
                   'format': self.format,
