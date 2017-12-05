@@ -22,10 +22,12 @@ import numpy
 # fix random seed for reproducibility
 #seed = 7
 #numpy.random.seed(seed)
-CLASSES = ["I-MISC","B-MISC","I-ORG","B-ORG","I-LOC","B-LOC","I-PER","B-PER","O"]
+#CLASSES = ["I-MISC","B-MISC","I-ORG","B-ORG","I-LOC","B-LOC","I-PER","B-PER","O"]
+CLASSES = ["I-MISC","B-MISC","I-LOC","B-LOC","I-PER","B-PER","O"]
+
 UNKNOWN_WORD = "@@@"
 LINE_SENTENCE_END = ""
-WINDOW_PADDING = 5
+WINDOW_PADDING = 3
 SENTENCE_DELIMITER = "***"
 MAX_SEQUENCE_LENGTH = 2*WINDOW_PADDING+1
 
@@ -157,7 +159,7 @@ for language in languages:
     print('Encontrou %s classes.' % len(targetTokenizer.word_index))
 
     targetSequences = getTargetSequences(chunks,targetTokenizer)
-    targetSequences = np_utils.to_categorical(targetSequences, 9)
+    targetSequences = np_utils.to_categorical(targetSequences, len(CLASSES))
 
     embedding_layer = Embedding(len(inputTokenizer.word_index) + 1, 64 , input_length=MAX_SEQUENCE_LENGTH)
 
@@ -168,7 +170,7 @@ for language in languages:
     x = MaxPooling1D(pool_length=3, stride=3)(x)
     x = Flatten()(x)
     x = Dense(128, activation='relu')(x)
-    preds = Dense(9, activation='softmax')(x)
+    preds = Dense(len(CLASSES), activation='softmax')(x)
     model = Model(sequence_input, preds)
 
     model.compile(loss='categorical_crossentropy', optimizer='rmsprop',metrics=['fmeasure','precision','recall'])

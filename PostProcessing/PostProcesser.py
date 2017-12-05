@@ -18,7 +18,7 @@ def main ():
     with open('../G1/ArticlesCrawled.json', 'r') as f:
         json_articles = json.load(f)
 
-        json_articles = json_articles[:100]
+        json_articles = json_articles
         setLocationEntities(json_articles)
         setPersonEntities(json_articles)
         removeUnsetEntities(json_articles)
@@ -77,7 +77,7 @@ def removeUndesiredCharacters(articles):
 
 def generateDataSet(articles):
     dataSet = open('dataSet', 'w')
-
+    nSentences = 0
     for article in articles:
         #writeArticleURL(article,dataSet)
         for sentence in article["Text"]:
@@ -108,6 +108,8 @@ def generateDataSet(articles):
                 #print (annotatedSentence)
                 predictOtherEntities(annotatedSentence,sentence)
                 writeAnnotadedSentence(annotatedSentence,dataSet)
+                nSentences +=1
+                print (nSentences)
 
     dataSet.close()
 
