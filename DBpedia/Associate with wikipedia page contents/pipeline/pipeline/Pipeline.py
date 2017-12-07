@@ -3,12 +3,9 @@ import logging
 import itertools
 import multiprocessing as mp
 from functools import reduce
-#mp.util.log_to_stderr(mp.util.SUBDEBUG)
+import traceback
 
 # TODOs 
-# - Add an option to pass a dialect to the CsvOutputWriter
-# - Put the validation functions in a Separate package, "Utils.py"
-# - Logging raised exceptions informing the exact stage where it occured
 # - Expose log file inside the stage
 # - Order functions, private, public
 
@@ -20,8 +17,15 @@ def _callPipelineFunc(call):
     param = call[1]
     return Pipeline._Pipelines[id](param)
 
+class PipelineException(Exception):
+    """ Encapsulates the risen exceptions by the stages of the pipeline """
+    def __init__(self,stage,pipeline,risenException):
+        self.stage = stage
+        self.pipeline = pipeline
+        self.risenException = risenException
+
 class Pipeline:
-    """ The class that executes the stages recieved """
+    """ Executes the stages recieved """
     _Pipelines = {}
     _generateId = itertools.count()
 
@@ -44,29 +48,30 @@ class Pipeline:
         self.id = next(self._generateId)
 
     def _createFunctionCompose(self,functions):
-        def compose(f, g):
+        def compose(f,g):
             """ functions f,g -> f(g()) """
             return lambda x: f(g(x))
         return reduce(compose, reversed(functions))
 
     def _buildPipelineFunction(self):
         """ Return the function built from all the steps of the pipeline and error logging """
-
         functions = self._getStagesFunctions()
-        return self._createFunctionCompose(functions)    
+        #functions = [stage.run for stage in self.stages ]
+
+        return self._createFunctionCompose(functions)
 
     def _getStagesFunctions(self):
         """ Returns the stages "run" functions after adding exception logging for each stage """
 
-        def addStageExceptLog(func,param,step):
-            """ Logs the exceptions raised in stage """
+        def addStageExceptLog(stage,position,param):
+            """ Calls the stage 'run' function logging errors raised raised by the stage details """
             try:
-                return func(param)
+                return stage.run(param)
             except Exception as exception:
-                logMsg = "ERROR in %s" % step.name
-                return PipelineException()
-
-        return [lambda param:addStageExceptLog(stage.run,param,stage) for stage in self.stages]
+                self._logStageException(stage,position,self,exception)
+                return exception
+        
+        return [lambda param,stage=stage:addStageExceptLog(stage,position+1,param) for position,stage in enumerate(self.stages)]
 
     def run (self, entries):
         """ Runs the pipeline stages on the given entries"""
@@ -76,16 +81,14 @@ class Pipeline:
         self._Pipelines[self.id] = self._buildPipelineFunction()
         pool = mp.Pool(processes=self.threads)
         executor = pool.imap if self.ordered else pool.imap_unordered
-
         class ExecutionResult:
             def __init__(self,result):
                 
                 def raiseExept(exeption):
                     raise exeption
 
-                if isinstance(result,PipelineException):                    
+                if isinstance(result,Exception):                   
                     self.get = lambda: raiseExept(result)
-                    print ("raiser")
                 else:    
                     self.get = lambda: result
 
@@ -101,60 +104,54 @@ class Pipeline:
         for result in getExecutionResults(executor(func=_callPipelineFunc,iterable=pairEntriesPipeline(entries,self.id),chunksize=self.chunkSize)):
             try:
                 yield result.get()
-            except:
-                print ("A-ok")
+            except Exception:
                 continue
+
+    def _logStageException(self,stage,stageIndx,pipeline,stageException):
+        logMsg = "Stage %s - %s raised an exception in Pipeline - %s"%(stageIndx,stage.name,pipeline.name)
+        self.logger.exception(logMsg)
 
     def _logExecution(self):
         """ Adds to the log the specifications of the Pipeline being run """
         logMsg = []
 
-        def addLine(msg):
-            logMsg.append(msg)
-            logMsg.append("\n")
-
-        addLine("\nExecuting pipeline: %s"% self.name)
+        logMsg.append("Executing pipeline: %s"% self.name)
         logMsg.append("%s has %s stages:\n"%(self.name,len(self.stages)))
 
         for idx,stage in enumerate(self.stages):
-            addLine("--------------------")
-            addLine("Stage %s : %s"%(idx+1,stage.name))
-            addLine("--------------------")
+            logMsg.append("--------------------")
+            logMsg.append("Stage %s : %s"%(idx+1,stage.name))
+            logMsg.append("--------------------")
             
             if stage.description:
-                addLine("Description:\n%s"%stage.description)
-
-        print (logMsg)
-        self.logger.info(''.join(logMsg))
+                logMsg.append("Description:\n%s"%stage.description)
+    
+        self.logger.info('\n'.join(logMsg))
 
     def _initializeLog(self,logDir):
         if logDir:
             self.logger = logging.getLogger('pipeline')
             hdlr = logging.FileHandler(logDir)
-            formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+            formatter = logging.Formatter('\n%(asctime)s %(levelname)s \n\n %(message)s')
             hdlr.setFormatter(formatter)
             self.logger.addHandler(hdlr)
             logging.basicConfig(level=logging.DEBUG)
-
-class PipelineException(Exception):
-    pass
 
 class Stage:
     def __init__(self,
                  name,
                  description=""):
-
         self.name = name
         self.description = description
 
     def run(self,entry):
         pass
 
-# class PipelineException(Exception):
-#     pass
+class PipelineException(Exception):
+     pass
 
 if __name__ == '__main__':
-
+    
     # tests for csv Writer
 
     # test csv output writer
@@ -181,35 +178,52 @@ if __name__ == '__main__':
     #pipeline = Pipeline(stages=stages)
     #pipeline.run()
 
+    class tst:
+        def run(self):
+            return 1
+
     class stage1(Stage):
         def run(self,entry):
-            return str(entry) + "1"
+            #print ("STAGE 1 EXECUTING")
+            #raise PipelineException()
+            return entry**2
 
     class stage2(Stage):
         def run(self,entry):
-            raise Exception()
+            #print ("STAGE 2 EXECUTING")
+            #raise Exception("Exception message")
             return str(entry) + "2"
-            #raise Exception("a")
             #return str(entry) + "2"
 
-    stage1 =stage1(name="satge1", description="aaa")
-    stage2 =stage2(name="satge2")
+    stage1 =stage1(name="stage1", description="aaa")
+    stage2 =stage2(name="stage2")
 
-    stages = [stage1,stage2,stage2]
+    
+    n = 2
 
-    pipeline = Pipeline(stages=stages,logPath="./tst.log",name = "PipeTest")
+    stages = []
+    for i in list(range(n)):
+        stages.append(stage1)
 
-    for r in  pipeline.run(list(range(2))):
-        print(r)
+    #pipelined = Pipeline(stages=stages,logPath="./tst.log",name = "PipeTest",chunkSize=500)
+    pipelined = Pipeline(stages=stages,logPath="./tst.log",name = "PipeTest",chunkSize=5000)
 
-    print(pipeline.id)
+    b = 10**6
+    import time
+    time1 = time.time()
+    for r in  pipelined.run(list(range(b))):
+        pass
+    time2 = time.time()
+    print (' function took %0.3f ms' % ( (time2-time1)*1000.0))
+    
+    time1 = time.time()
 
-    '''
-    pipeline api
+    for i in  list(range(b)):
+        for j in list(range(n)):
+            stage1.run(i)
+    time2 = time.time()
+    print (' function took %0.3f ms' % ( (time2-time1)*1000.0))
 
-    step1 = CustomStep1()
-    step2 = Custom step2()
+    print("2")
 
-    Pipeline.add(step1)
-    Pipeline.add(step2)
-    '''
+    print(pipelined.id)
